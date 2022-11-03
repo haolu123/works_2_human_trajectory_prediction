@@ -3,10 +3,10 @@ import os
 
 argparser = argparse.ArgumentParser(description='human trajectory prediction')
 
-# # folder directions
-# argparser.add_argument('--temp_result_dir', type=str, default='./temp_result/')
-# argparser.add_argument('--data_dir', type=str, default='./data/')
-# argparser.add_argument('--result_dir', type=str, default='./result/', help='the place to save the result')
+# folder directions
+argparser.add_argument('--temp_result_dir', type=str, default='./temp_result/')
+argparser.add_argument('--data_dir', type=str, default='./data/')
+argparser.add_argument('--result_dir', type=str, default='./result/', help='the place to save the result')
 # # room parameters
 # argparser.add_argument('--room_width', type=float, default=2000*1.1, help='the real width of the room (cm)')
 # argparser.add_argument('--room_length', type=float, default=2000*1.1, help='the real length of the room (cm)')
