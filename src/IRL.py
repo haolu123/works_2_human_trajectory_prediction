@@ -21,10 +21,13 @@ class IRL:
                 count_f += 1
         return sum_f/count_f
 
-    def backward_pass(self, AreaInt, iter_num):
-
-        V = -1000 * np.ones(self.features_get.fp.shape)
-        Q = np.zeros(self.features_get.fp.shape, len(self.action_space))
+    def backward_pass(self, AreaInt, iter_num, hot_start=False):
+        if not hot_start:
+            V = -1000 * np.ones(self.features_get.fp.shape)
+            Q = np.zeros(self.features_get.fp.shape, len(self.action_space))
+        else:
+            V = self.V
+            Q = self.Q
 
         feature_map = self.features_get.get_feature_map()
 
@@ -36,7 +39,7 @@ class IRL:
         self.pi = pi
         self.Q = Q
         self.V = V
-        
+
     def get_shift_V(self, V):
         V_list = []
         V_pad = np.pad(V, ((1, 1), (1, 1)), 'constant', constant_values=(-1000, -1000))
@@ -45,4 +48,16 @@ class IRL:
             
             V_shift = np.roll(V_shift, a[0], axis=1)
             V_shift = np.roll(V_shift, a[1], axis=0)
-                
+
+            V_list.append(V_shift)
+        V_shift_all = np.concatenate(V_list,axis=2)
+        return V_shift_all
+    
+    def softmax(self, Q):
+        V = np.log(np.sum(np.exp(Q), axis=2))
+        return V
+
+    def forward_pass(self, AreaInt, iter_num):
+        feature_map = self.features_get.get_feature_map()
+        D_init = np.exp(feature_map @ self.theta)
+        D_init = np.
