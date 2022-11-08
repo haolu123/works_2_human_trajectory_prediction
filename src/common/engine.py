@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 import copy
 import math
 import os
+from common.config import argparser
+from common.A_star import Env, AStar
+import tqdm
 
 def Get_BaseColor(img_name, pickle_name, baseColor_num):
     """This function is used to get the base color for color board
@@ -111,3 +114,125 @@ def Label_gridFloorPlan(img_file, img_zone_file, width, length, grid_width, temp
     with open(temp_result_folder + 'fp_grid.pickle','wb') as f:
         pickle.dump(fp_grid, f)
     return fp_grid, fp_grid_gt
+
+def get_fp(baseColor_fn, fp_zone_fn, fp_code_fn, grid_width):
+        args = argparser.parse_args()
+        base_color_fig_name = args.data_dir + baseColor_fn
+        floor_plan_zone_fig_name = args.data_dir + fp_zone_fn
+        floor_plan_code_fig_name = args.data_dir + fp_code_fn
+
+        room_width = args.room_width
+        room_length = args.room_length
+
+        baseColor_temp_dir = args.temp_result_dir+'baseColor.pickle'
+        flag = os.path.exists(baseColor_temp_dir)
+        if args.use_saved_base_color and flag:
+            with open(args.temp_result_dir+'baseColor.pickle', 'rb') as f:
+                baseColor = pickle.load(f)
+        else:
+            baseColor = Get_BaseColor(base_color_fig_name, args.temp_result_dir + 'baseColor.pickle', 16)
+
+        flag = os.path.exists(args.temp_result_dir + 'fp_grid.pickle')
+        if args.use_save_temp_result and flag:
+            with open(args.temp_result_dir + 'fp_grid.pickle','rb') as f:
+                fp_grid = pickle.load(f)
+            with open(args.temp_result_dir + 'fp_grid_groundtruth.pickle','rb') as f:
+                fp_grid_gt = pickle.load(f)
+        else:
+            fp_grid, fp_grid_gt =  Label_gridFloorPlan(floor_plan_code_fig_name, floor_plan_zone_fig_name, room_width, room_length, grid_width, args.temp_result_dir, baseColor)
+        
+        
+        return fp_grid
+
+def A_star_simulation(args, fp_grid):
+    """
+        get training dataset (using A* algroithm to mimic human behavior)
+        Args: 
+            args: pre-defined parameters,
+            fp_grid: grided floor plan (array)
+            grid_width: grid width/cm (float)
+            range_b: boundary range (may not use here)
+
+        Returns:
+            path_all : list of paths
+            bound_slices, b_mid: may not used.
+    """
+    walk_freq_map = np.zeros(fp_grid.shape)
+    # build enviroment for A* algorithm
+    fp_env = Env(fp_grid)
+
+    # begin simulation
+    path_all = []
+    for loop_num in tqdm.tqdm(range(args.path_num)):
+        # random select two points as start and end point
+        (s_start, s_goal) = fp_env.get_start_end_point()
+
+        # add random small obstacles
+        fp_env.add_random_obs(args.random_obstacle_dense)
+
+        # get the shortest path between start point and end point
+        astar = AStar(s_start, s_goal, "euclidean", fp_env)
+        path, visited = astar.searching(args.doorway_penalty, args.wall_penalty)
+
+        # save shortest paths
+        path_all.append(path)
+
+        # mark in the walk frequence map
+        if args.save_hotmap:
+            for p in path:
+                walk_freq_map[p[0],p[1]] += 1
+
+    if args.save_hotmap:
+        # plot walk_freq_map
+        plt.imshow(walk_freq_map, cmap='hot', interpolation='nearest')
+        plt.title("obstacle dense:%.3f, doorway penalty:%d , wall_penalty:%d" % (args.random_obstacle_dense, args.doorway_penalty, args.wall_penalty))
+        img_name = "obstacle_dense_" + str(args.random_obstacle_dense) + "doorway_penalty" + str(args.doorway_penalty) + "wall_penalty" + str(args.wall_penalty) +'.png'
+        folder_name = args.temp_result_dir+'hotmap/'
+        os.makedirs(folder_name, exist_ok=True)
+        plt.savefig(folder_name + img_name)
+        # plt.show()
+
+        with open(args.temp_result_dir+"walk_freq_map.pickle", 'wb') as f:
+            pickle.dump(walk_freq_map,f)
+
+    if args.save_temp_result:
+        # save simulated paths
+        with open(args.temp_result_dir+'path_all.pickle', 'wb') as f:
+            pickle.dump(path_all, f)
+    
+    if args.save_unity3d_result:
+        folder_name_unity ='unity3d_result/'
+        os.makedirs(folder_name_unity, exist_ok=True)
+
+        # save simulated information for unity 3d simulation
+        fp_grid_unity = copy.deepcopy(fp_grid)
+        fp_grid_unity[fp_grid_unity==2] = 1
+        
+        # save obstacles
+        obstacle_where = np.where(fp_grid_unity==1)
+        obstacle_list = np.zeros((obstacle_where[0].shape[0],2))
+        for i in range(obstacle_where[0].shape[0]):
+            obstacle_list[i,:] = [obstacle_where[0][i],obstacle_where[1][i]]
+            
+        obstacle_list = obstacle_list - np.array(fp_grid_unity.shape)//2
+        with open(folder_name_unity + "fp_grid_obstacle.txt", 'w+') as f:
+            f.write("numWall,%d" % obstacle_where[0].shape[0])
+        with open(folder_name_unity + "fp_grid_obstacle.txt", "ab") as f:
+            f.write(b"\n")
+            np.savetxt(f, obstacle_list, fmt='%d',delimiter=',')
+        
+        # save area of interestings
+        interest_where = np.where(fp_grid_unity==4)
+        
+        area_interest_list = np.zeros((interest_where[0].shape[0],2))
+        for i in range(interest_where[0].shape[0]):
+            area_interest_list[i,:] = [interest_where[0][i],interest_where[1][i]]
+        area_interest_list = area_interest_list - np.array(fp_grid_unity.shape)//2
+        with open(folder_name_unity + "fp_grid_interest.txt", 'w+') as f:
+            f.write("numInterest,%d" % interest_where[0].shape[0])
+        with open(folder_name_unity + "fp_grid_interest.txt", "ab") as f:
+            f.write(b"\n")
+            np.savetxt(f, area_interest_list, fmt='%d',delimiter=',')
+        
+
+    return path_all
