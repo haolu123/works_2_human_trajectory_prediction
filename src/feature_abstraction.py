@@ -13,9 +13,10 @@ def all_idx(idx, axis):
     return tuple(grid)
 
 class f_abs:
-    Feature_dims = 7
+    
 
     def __init__(self, fp) -> None:
+        self.Feature_dims = 7
         self.features = np.zeros(self.Feature_dims)
         self.fp = fp.astype('int')
         
@@ -45,7 +46,7 @@ class f_abs:
         dist_map = self.distance_map()
 
 
-        return np.concatenate((encoded_fp,dist_map), axis=2)
+        return np.concatenate((encoded_fp,dist_map.reshape(dist_map.shape[0],dist_map.shape[1],1)), axis=2)
 
     def distance_map(self):
         dist_map = np.zeros(self.fp.shape)
@@ -64,9 +65,11 @@ class f_abs:
             for j in detect_dir:
                 x = i*j[0] + point[0]
                 y = i*j[1] + point[1]
+                if x >= self.fp.shape[0] or y >=  self.fp.shape[1]:
+                    break
                 if self.fp[x,y] == 1 or self.fp[x,y] == 2:
-                    return i
-        return 10
+                    return i/10
+        return 10/10
 
 #%%
 def run():
