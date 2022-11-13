@@ -96,7 +96,7 @@ class IRL:
             D = np.sum(self.get_shift_D(self.pi * D.reshape((D.shape[0],D.shape[1],1))), axis = 2)
             D_sum += D
         ##############################################
-        feature_mean = D_sum @ self.feature_map
+        feature_mean = D_sum.reshape(1,-1) @ self.feature_map.reshape(-1,self.feature_map.shape[2])
         return feature_mean
 
     def get_shift_D(self, D):

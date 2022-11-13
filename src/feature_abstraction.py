@@ -13,8 +13,8 @@ def all_idx(idx, axis):
     return tuple(grid)
 
 class f_abs:
-    
 
+    
     def __init__(self, fp) -> None:
         self.Feature_dims = 7
         self.features = np.zeros(self.Feature_dims)
@@ -58,7 +58,73 @@ class f_abs:
     def min_distance_to_wall(self,point):
         """
             get the minimum distance to the wall or obstacles
+        """
+        detect_dir = [(0,1),(1,0),(-1,0),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1)]
+        for i in range(10):
+            for j in detect_dir:
+                x = i*j[0] + point[0]
+                y = i*j[1] + point[1]
+                if x >= self.fp.shape[0] or y >=  self.fp.shape[1]:
+                    break
+                if self.fp[x,y] == 1 or self.fp[x,y] == 2:
+                    return i/10
+        return 10/10
 
+#%%
+class f_abs_with_direction:
+    
+    def __init__(self, fp) -> None:
+        self.Feature_dims = 5
+        self.features = np.zeros(self.Feature_dims)
+        self.fp = fp.astype('int')
+        self.modify_fp()
+
+    def modify_fp(self):
+        self.fp[self.fp==2] = 1
+        self.fp[self.fp==3] = 2
+        self.fp[self.fp>3] = 0
+
+    def get_features(self, s, a_p, a_c):
+        '''
+            feature map
+            Args:
+                s : (x,y) position
+                a_p : (vx,vy) previous velocity
+                a_c : (vx,vy) current velocity
+            Returns:
+                features : change self.features
+        '''
+        material = self.fp[s]
+        b = np.zeros(self.fp.max()+1)
+        b[int(material)] = 1
+        self.features[:b.size] = b
+        self.features[b.size+1] = self.min_distance_to_wall(s)
+        self.features[-2] = np.dot(a_p,a_c)
+        self.features[-1] = np.linalg.norm(a_c) - np.linalg.norm(a_p)
+        return self.features
+
+    def get_feature_map(self):
+        fp_x_size = self.fp.shape[0]
+        fp_y_size = self.fp.shape[1]
+        
+        encoded_fp = np.zeros((fp_x_size,fp_y_size, self.fp.max()+1), dtype=int)
+        encoded_fp[all_idx(self.fp, axis=2)] = 1 
+
+        dist_map = self.distance_map()
+
+
+        return np.concatenate((encoded_fp,dist_map.reshape(dist_map.shape[0],dist_map.shape[1],1)), axis=2)
+
+    def distance_map(self):
+        dist_map = np.zeros(self.fp.shape)
+        for i in range(self.fp.shape[0]):
+            for j in range(self.fp.shape[1]):
+                dist_map[i,j] = self.min_distance_to_wall((i,j))
+        return dist_map
+        
+    def min_distance_to_wall(self,point):
+        """
+            get the minimum distance to the wall or obstacles
         """
         detect_dir = [(0,1),(1,0),(-1,0),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1)]
         for i in range(10):

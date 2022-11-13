@@ -4,7 +4,8 @@ from feature_abstraction import f_abs
 from common.config import argparser
 from common.engine import get_fp, A_star_simulation
 import os,pickle
-
+import numpy as np
+import matplotlib.pyplot as plt
 #%% test fp, path_train and s_goal
 grid_width = 10
 baseColor_fn = 'baseColor.png'
@@ -40,3 +41,39 @@ irl.backward_pass(AreaInt, 100)
 feature_mean = irl.forward_pass(AreaInt,100)
 # %%
 irl.gradiant_theta(AreaInt, 500, path_train, 0.01)
+# %%
+s_init = path_train[0][20]
+heat_map = irl.pred_avg_heatmap(s_init,100)
+
+# %%
+import copy
+
+# heat_map = heat_map/np.sum(heat_map)
+# log_hm = np.log(heat_map+0.00001)
+# min_lhm = np.min(log_hm)
+# max_lhm = np.max(log_hm)
+# log_hm_norm = (log_hm-min_lhm)/(max_lhm-min_lhm)
+
+def get_fp_path(fp, path):
+    fp_copy = copy.deepcopy(fp)
+    for i in path:
+        fp[i] = 10
+    return fp_copy
+# fp_path = get_fp_path(fp, path_train[0])
+# plt.imshow(10*log_hm_norm+fp_path)
+
+def plot_hm_fp_path(heat_map, path):
+    heat_map = heat_map/np.sum(heat_map)
+    log_hm = np.log(heat_map+0.00001)
+    min_lhm = np.min(log_hm)
+    max_lhm = np.max(log_hm)
+    log_hm_norm = (log_hm-min_lhm)/(max_lhm-min_lhm)
+    fp_path = get_fp_path(fp, path_train[0])
+    return 10*log_hm_norm+fp_path
+for i in range(1,len(path_train[0]),20):
+    s_init = path_train[0][i]
+    heat_map = irl.pred_avg_heatmap(s_init,250)
+    hm_fp_path = plot_hm_fp_path(heat_map, path_train[0])
+    plt.imshow(hm_fp_path)
+    plt.show()
+# %%

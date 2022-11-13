@@ -27,7 +27,7 @@ def run():
 if __name__ == "__main__":
     path = os.getcwd()
     print("current working directory: {0}".format(path))
-    if path.split('/')[-1] != 'src':
+    if path.split('\\')[-1] != 'src':
         path = os.path.join(path,'src')
         os.chdir(path)
     path_all = run()
