@@ -74,10 +74,11 @@ class f_abs:
 class f_abs_with_direction:
     
     def __init__(self, fp) -> None:
-        self.Feature_dims = 5
+        self.Feature_dims = 6
         self.features = np.zeros(self.Feature_dims)
         self.fp = fp.astype('int')
         self.modify_fp()
+        self.action_space = [(1,1),(0,1),(-1,1),(1,0),(0,0),(-1,0),(1,-1),(0,-1),(-1,-1)]
 
     def modify_fp(self):
         self.fp[self.fp==2] = 1
@@ -111,9 +112,18 @@ class f_abs_with_direction:
         encoded_fp[all_idx(self.fp, axis=2)] = 1 
 
         dist_map = self.distance_map()
+        fp_feature_map = np.concatenate((encoded_fp,dist_map.reshape(dist_map.shape[0],dist_map.shape[1],1)), axis=2)
 
+        # action_map : [previous action, current action]
+        action_map = np.zeros(len(self.action_space), len(self.action_space),2)
 
-        return np.concatenate((encoded_fp,dist_map.reshape(dist_map.shape[0],dist_map.shape[1],1)), axis=2)
+        for i in range(len(self.action_space)):
+            for j in range(len(self.action_space)):
+                a_c = self.action_space[j]
+                a_p = self.action_space[i]
+                action_map[i,j,0] = np.dot(a_c, a_p)
+                action_map[i,j,1] = np.linalg.norm(a_c) - np.linalg.norm(a_p)
+        return (fp_feature_map, action_map)
 
     def distance_map(self):
         dist_map = np.zeros(self.fp.shape)
