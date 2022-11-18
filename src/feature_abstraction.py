@@ -115,7 +115,7 @@ class f_abs_with_direction:
         fp_feature_map = np.concatenate((encoded_fp,dist_map.reshape(dist_map.shape[0],dist_map.shape[1],1)), axis=2)
 
         # action_map : [previous action, current action]
-        action_map = np.zeros(len(self.action_space), len(self.action_space),2)
+        action_map = np.zeros((len(self.action_space), len(self.action_space),2))
 
         for i in range(len(self.action_space)):
             for j in range(len(self.action_space)):
