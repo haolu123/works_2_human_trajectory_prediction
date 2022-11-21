@@ -18,7 +18,9 @@ with open(tempdir + 'fp_grid.pickle', 'rb') as f:
 
 with open(tempdir + 'path_all.pickle', 'rb') as f:
     path_train = pickle.load(f)
-
+for i in range(len(path_train)-1,-1,-1):
+    if len(path_train[i]) == 0:
+        path_train.pop(i)
 s_goal_list = [i[-1] for i in path_train]
 s_goal_set = set()
 for s in s_goal_list:
