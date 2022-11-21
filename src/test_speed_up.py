@@ -30,7 +30,7 @@ for s in s_goal_list:
 # %% test IRL.get_mean_features
 
 irl = IRL(fp)
-
+feature_mean_ob = irl.get_mean_features(path_train)
 # D = irl.get_mean_features(path_train)
 
 # %%
@@ -39,14 +39,15 @@ AreaInt = [[],[]]
 for s in s_goal_set:
     AreaInt[0].append(s[0])
     AreaInt[1].append(s[1])
-irl.backward_pass(AreaInt, 100)
+irl.backward_pass(AreaInt, 500)
 
 # %%
 print('test_fp')
-feature_mean = irl.forward_pass(AreaInt,100)
+feature_mean = irl.forward_pass(AreaInt,500)
+
 # %%
 print('test_gradiant')
-irl.gradiant_theta(AreaInt, 500, path_train, 0.01)
+irl.gradiant_theta(AreaInt, 50, path_train, 0.01)
 # %%
 s_init = path_train[0][20]
 heat_map = irl.pred_avg_heatmap(s_init,100,AreaInt)

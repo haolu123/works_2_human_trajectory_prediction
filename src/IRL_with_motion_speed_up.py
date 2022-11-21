@@ -1,5 +1,5 @@
 import numpy as np
-import copy 
+import copy, pickle
 from tqdm import tqdm
 import numba     # import the types
 from numba.experimental import jitclass
@@ -31,14 +31,14 @@ def all_idx(idx, axis):
 class IRL:
 
     def __init__(self, fp) -> None:
-        self.Feature_dims = 6
+        self.Feature_dims = 5
         self.features = np.zeros(self.Feature_dims)
         self.fp = fp.astype('int')
         self.modify_fp()
         self.action_space = [[1,1],[0,1],[-1,1],[1,0],[0,0],[-1,0],[1,-1],[0,-1],[-1,-1]]
         self.feature_map = self.get_feature_map()
 
-        self.theta = np.random.uniform(-1,0,self.Feature_dims)
+        self.theta = np.random.uniform(-0.2,0,self.Feature_dims)
         self.fp_shape = fp.shape
 
         n_action = len(self.action_space)
@@ -68,7 +68,7 @@ class IRL:
         self.features[:b.size] = b
         self.features[b.size+1] = self.min_distance_to_wall(s)
         self.features[-2] = np.dot(a_p,a_c)
-        self.features[-1] = np.linalg.norm(a_c) - np.linalg.norm(a_p)
+        # self.features[-1] = np.linalg.norm(a_c) - np.linalg.norm(a_p)
         return self.features
 
     def get_feature_map(self):
@@ -83,17 +83,16 @@ class IRL:
         fp_feature_map = np.concatenate((encoded_fp,dist_map.reshape(dist_map.shape[0],dist_map.shape[1],1)), axis=2)
 
         # action_map : [previous action, current action]
-        action_map = np.zeros((n_action, n_action,2))
+        action_map = np.zeros((n_action, n_action))
 
         for i in range(n_action):
             for j in range(n_action):
                 a_c = self.action_space[j]
                 a_p = self.action_space[i]
-                action_map[i,j,0] = np.dot(a_c, a_p)
-                action_map[i,j,1] = np.linalg.norm(a_c) - np.linalg.norm(a_p)
-        
+                action_map[i,j] = np.dot(a_c, a_p)
+
         fp_feature_map_ls = np.tile(fp_feature_map.reshape((fp_x_size,fp_y_size,1,1,4)), (1,1,n_action,n_action,1))
-        action_feature_map_ls = np.tile(action_map.reshape((1,1,n_action,n_action,2)), (fp_x_size, fp_y_size, 1, 1, 1))
+        action_feature_map_ls = np.tile(action_map.reshape((1,1,n_action,n_action,1)), (fp_x_size, fp_y_size, 1, 1, 1))
         feature_map = np.concatenate((fp_feature_map_ls, action_feature_map_ls), axis=4)
         return feature_map
 
@@ -148,7 +147,7 @@ class IRL:
         else:
             V = self.V
             Q = self.Q
-
+        self.R = self.get_reward()
         # feature_map = self.features_get.get_feature_map()
         for i in range(iter_num):
             V[AreaInt[0], AreaInt[1], :] = 0
@@ -245,6 +244,8 @@ class IRL:
     def gradiant_theta(self, AreaInt, iter_num, paths, step_size, max_loop = 500, epsil=0.001):
         # initial
         feature_mean_ob = self.get_mean_features(paths)
+        feature_mean_list = []
+        d_l_list = []
         for i in tqdm(range(max_loop)):
             self.backward_pass(AreaInt, iter_num)
             feature_mean = self.forward_pass(AreaInt, iter_num)
@@ -252,8 +253,17 @@ class IRL:
             if np.max(d_l) <= epsil:
                 print('converged')
                 break
-            self.theta = self.theta - step_size * d_l
+            ################################
+            self.theta = self.theta + step_size * d_l
             self.theta = self.theta.reshape(-1)
+            feature_mean_list.append(feature_mean)
+            d_l_list.append(d_l)
+            print(np.max(step_size * d_l))
+            print(np.max(np.abs(self.R-self.get_reward())))
+        with open('./result/feature_list.pickle','wb') as f:
+            pickle.dump(feature_mean_list, f)
+        with open('./result/gradient_list.pickle', 'wb') as f:
+            pickle.dump(d_l_list,f)
 
 
     def pred_avg_heatmap(self, s_init, path_length, AreaInt):
