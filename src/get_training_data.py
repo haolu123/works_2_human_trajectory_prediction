@@ -3,7 +3,7 @@ from common.engine import get_fp, A_star_simulation
 import os,pickle
 
 def run():
-    grid_width = 10
+    grid_width = 40
     baseColor_fn = 'baseColor.png'
     fp_zone_fn = 'fp2_zone.png'
     fp_code_fn = 'fp2_code.png'

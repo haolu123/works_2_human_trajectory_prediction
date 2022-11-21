@@ -10,7 +10,24 @@ def all_idx(idx, axis):
     grid.insert(axis, idx)
     return tuple(grid)
 
+# list_type = numba.types.ListType(numba.types.int32)
+# tuple_type = numba.typeof((100,100))
+# spec = [
+#     ('Feature_dims', numba.int32)
+#     ('features', numba.float32[:]),
+#     ('fp', numba.int32[:,:]),
+#     ('action_space', numba.types.ListType(list_type)),
+#     ('feature_map', numba.float32[:,:]),
+#     ('theta', numba.float32[:]),
+#     ('n_action', numba.int32),
+#     ('fp_shape', tuple_type),
+#     ('pi', numba.float32[:,:]),
+#     ('Q', numba.float32[:,:]),
+#     ('V', numba.float32[:,:]),
+#     ('R', numba.float32[:,:,:,:])
+# ]
 
+# @jitclass(spec)
 class IRL:
 
     def __init__(self, fp) -> None:
@@ -18,13 +35,12 @@ class IRL:
         self.features = np.zeros(self.Feature_dims)
         self.fp = fp.astype('int')
         self.modify_fp()
-        self.action_space = [(1,1),(0,1),(-1,1),(1,0),(0,0),(-1,0),(1,-1),(0,-1),(-1,-1)]
+        self.action_space = [[1,1],[0,1],[-1,1],[1,0],[0,0],[-1,0],[1,-1],[0,-1],[-1,-1]]
         self.feature_map = self.get_feature_map()
 
         self.theta = np.random.uniform(-1,0,self.Feature_dims)
         self.fp_shape = fp.shape
 
-        n_position = self.fp_shape[0]*self.fp_shape[1]
         n_action = len(self.action_space)
         self.pi = np.zeros((self.fp_shape[0],self.fp_shape[1], n_action, n_action))
         self.Q = np.zeros((self.fp_shape[0],self.fp_shape[1], n_action, n_action))
@@ -142,7 +158,7 @@ class IRL:
                 break
             self.Q = Q
             self.V = V
-        pi = np.exp(Q-np.repeat(V[:,:,np.newaxis], len(self.action_space), axis=3)) 
+        pi = np.exp(Q-np.repeat(V[:,:,:,np.newaxis], len(self.action_space), axis=3)) 
         self.pi = pi
         self.modify_pi()
         
@@ -185,9 +201,11 @@ class IRL:
         V_paa = np.zeros((self.fp_shape[0], self.fp_shape[1], n_action, n_action))
 
         V_pad = np.pad(V, ((1, 1), (1, 1), (0, 0)), 'constant', constant_values=(-1000, -1000))
+
         for a_i in range(len(self.action_space)):
             a = self.action_space[a_i]
-            V_paa[:,:,:,self.action_space[a_i]] = V_pad[1-a[0]:self.fp_shape[0]-a[0], 1-a[1]:self.fp_shape[1]-a[1], self.action_space[a_i]].reshape((self.fp_shape[0],self.fp_shape[1],1))
+
+            V_paa[:,:,:,a_i] = V_pad[1-a[0]:self.fp_shape[0]+1-a[0], 1-a[1]:self.fp_shape[1]+1-a[1], a_i].reshape((self.fp_shape[0],self.fp_shape[1],1))
             
         return V_paa
     
@@ -208,8 +226,7 @@ class IRL:
         for iter in range(iter_num):
             D[AreaInt[0], AreaInt[1], :] = 0
             D_s_a = self.pi * D.reshape((D.shape[0], D.shape[1], D.shape[2], 1))
-            D_with_act = self.get_shift_D(D_s_a)
-            D = np.sum(D_with_act, axis=3)
+            D = self.get_shift_D(D_s_a)
             D_sum += D
             feature_mean += D_s_a.reshape(1,-1) @ self.feature_map.reshape(-1,self.Feature_dims)
             if np.min(D) < 0.01:
@@ -222,7 +239,7 @@ class IRL:
         D_next = np.zeros((self.fp_shape[0], self.fp_shape[1], len(self.action_space)))
         for a_i in range(len(self.action_space)):
             a = self.action_space[a_i]
-            D_next[:,:,a_i] = np.sum(D_pad[1+a[0]:self.fp_shape[0]+a[0], 1+a[1]:self.fp_shape[1]+a[1], :, a_i], axis=2)
+            D_next[:,:,a_i] = np.sum(D_pad[1+a[0]:self.fp_shape[0]+1+a[0], 1+a[1]:self.fp_shape[1]+1+a[1], :, a_i], axis=2)
         return D_next
 
     def gradiant_theta(self, AreaInt, iter_num, paths, step_size, max_loop = 500, epsil=0.001):
@@ -254,7 +271,7 @@ class IRL:
             D[AreaInt[0], AreaInt[1], :] = 0
             D_s_a = self.pi * D.reshape((D.shape[0], D.shape[1], D.shape[2], 1))
             D_with_act = self.get_shift_D(D_s_a)
-            D = np.sum(D_with_act, axis=3)
+            D = D_with_act
             D_sum += D
 
             if np.min(D) < 0.01:

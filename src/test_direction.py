@@ -47,7 +47,7 @@ print('test_gradiant')
 irl.gradiant_theta(AreaInt, 500, path_train, 0.01)
 # %%
 s_init = path_train[0][20]
-heat_map = irl.pred_avg_heatmap(s_init,100)
+heat_map = irl.pred_avg_heatmap(s_init,100,AreaInt)
 
 # %%
 import copy
@@ -76,7 +76,7 @@ def plot_hm_fp_path(heat_map, path):
     return 10*log_hm_norm+fp_path
 for i in range(1,len(path_train[0]),20):
     s_init = path_train[0][i]
-    heat_map = irl.pred_avg_heatmap(s_init,250)
+    heat_map = irl.pred_avg_heatmap(s_init,250,AreaInt)
     hm_fp_path = plot_hm_fp_path(heat_map, path_train[0])
     plt.imshow(hm_fp_path)
     plt.show()
