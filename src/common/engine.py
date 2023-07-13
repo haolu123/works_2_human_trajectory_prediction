@@ -8,6 +8,7 @@ import os
 from common.config import argparser
 from common.A_star import Env, AStar
 import tqdm
+import cvxpy as cp
 
 def Get_BaseColor(img_name, pickle_name, baseColor_num):
     """This function is used to get the base color for color board
@@ -236,3 +237,116 @@ def A_star_simulation(args, fp_grid):
         
 
     return path_all
+
+    
+def get_G_matrix(fp_grid, grid_width):
+    fp_grid_cover = copy.deepcopy(fp_grid)
+    fp_grid_cover[fp_grid_cover > 2] = 0
+    
+    x_range = fp_grid_cover.shape[0]
+    y_range = fp_grid_cover.shape[1]
+    
+    G = -np.ones((x_range,y_range,x_range,y_range)).astype(np.int8)
+    
+    for x_i in range(x_range):
+        for x_j in range(y_range):
+            # print((x_i,x_j))
+            if fp_grid_cover[x_i,x_j] != 0:
+                continue
+            
+            for quad in range(4):
+                if quad == 0:
+                    sign_i = 1
+                    sign_j = 1
+                elif quad == 1:
+                    sign_i = -1
+                    sign_j = 1
+                elif quad == 2:
+                    sign_i = -1
+                    sign_j = -1
+                else:
+                    sign_i = 1
+                    sign_j = -1
+                
+            # sign_i = -1
+            # sign_j = 1
+                obs_slop = []
+                for i in range(100//grid_width):
+                    for j in range(100//grid_width):
+                        # if i == 4 and j == 2:
+                        #     aaa = 0
+                            
+                        sc_grid_i = x_i + i*sign_i
+                        sc_grid_j = x_j + j*sign_j
+                        
+                        if sc_grid_i<0 or sc_grid_i>=x_range:
+                            continue
+                        if sc_grid_j<0 or sc_grid_j>=y_range:
+                            continue
+                        
+                        if fp_grid_cover[sc_grid_i,sc_grid_j] != 0: 
+                            # if this grid is obstacle
+                            # set G
+                            G[x_i,x_j,sc_grid_i,sc_grid_j] = 0
+                            
+                            # update shaddow
+                            obs_r = np.sqrt(i**2 + j**2)
+                            if i != 0:
+                                obs_a = np.arctan(j/i)
+                            else:
+                                obs_a = np.pi/2
+                            obs_slop.append((obs_r,obs_a))
+                        else: 
+                            # if this gird is not obstacle
+                            
+                            # compute the polar coordinate of this grid
+                            g_r = np.sqrt(i**2 + j**2)
+                            if i!=0:
+                                g_a = np.arctan(j/i)
+                            else:
+                                g_a = np.pi/2
+                            # set G[]=1 (can be detected) first then kick off the shaddows.
+                            G[x_i,x_j,sc_grid_i,sc_grid_j] = 1
+                            # whether this grid in in shaddow
+                            for obs_i in obs_slop:
+                                if g_r > obs_i[0] and obs_i[1]-0.9/obs_i[0] <= g_a <= obs_i[1] + 0.9/obs_i[0]:
+                                    # if it is in shaddow, set G[] = 0
+                                    G[x_i,x_j,sc_grid_i,sc_grid_j] = 0
+                                    break
+                    
+    G = G.reshape(x_range*y_range, x_range*y_range).astype(np.int8)
+    G[G == -1] = 0
+    G = G.T
+    return G
+
+
+def ILP_solver(n, G, R):
+    sensor_placement = []
+    # x_init = np.concatenate(np.zeros(n,1), np.zeros(n,1), axis=0)
+
+    x = cp.Variable(2*n, boolean = True)
+    gamma = cp.Parameter(nonneg=True)
+    gamma_vals = np.array([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
+
+    Obj = np.concatenate((np.zeros((n,1)), R.reshape((n,1))), axis=0)
+    
+    temp_line_1 = np.concatenate((np.ones((1,n)), np.zeros((1,n))),axis = 1)
+    temp_line_2 = np.concatenate((-G, np.eye(n)),axis = 1)
+
+
+    objective = 0.01* np.concatenate((np.ones((1,n)),np.zeros((1,n))), axis = 1) @ x - Obj.T @ x
+
+    constrains = []
+    for i in range(n):
+        constrains.append(temp_line_2[i] @ x <= 0)
+    
+    constrains.append(temp_line_1 @ x <= gamma)
+
+    problem = cp.Problem(cp.Minimize(objective), constrains)
+
+    for val in gamma_vals:
+        gamma.value = val
+        problem.solve(solver = 'CBC',verbose=True, warm_start = False, maximumSeconds=4000)
+        sensor_placement.append(x.value[:n])
+    
+    return sensor_placement
